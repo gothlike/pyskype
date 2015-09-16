@@ -50,7 +50,7 @@ def reliability():
 
 def routing(to, hdr={}):
     defaults = {
-        'To': to, 
+        'To': '8:' + to,
         'From': "8:" + skypename + ";epid={" + epid + "}" 
     }
     defaults.update(hdr)
@@ -188,7 +188,7 @@ class Connection():
 
         self.send("PUT", "MSGR\CHALLENGE", reg() + "<challenge><appId>PROD0090YUAUV{2B</appId><response>" + rsp + "</response></challenge>\r\n")
 
-        self.send("PUT", "MSGR\PRESENCE", reg() + routing("8:" + skypename) + reliability() + publication())
+        self.send("PUT", "MSGR\PRESENCE", reg() + routing(skypename) + reliability() + publication())
 
         self.send("PUT", "MSGR\SUBSCRIPTIONS", reg() + "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>")
 
@@ -204,7 +204,7 @@ connection = Connection()
 connection.connect('s.gateway.messenger.live.com', 443)
 
 # to send a message:
-# connection.msgr(routing("8:" + skypename) + reliability() + messaging_rich("Oh, hi!"))
+# connection.msgr(routing(skypename) + reliability() + messaging_rich("Oh, hi!"))
 
 # TODO: handle OUT/reconnect
 
