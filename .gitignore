@@ -1,0 +1,50 @@
+*.py[cod]
+
+# C extensions
+*.so
+
+# Packages
+*.egg
+*.egg-info
+dist/*.egg
+dist/*.tar.gz
+build
+eggs
+parts
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+
+# Installer logs
+pip-log.txt
+
+# Twisted logs
+twistd.log
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+_trial_temp
+
+# Translations
+*.mo
+
+# Html
+*.html
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+.idea
+
+dropin.cache
+
+# For development
+report_coverage
+run*.sh
+
