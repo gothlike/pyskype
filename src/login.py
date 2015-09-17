@@ -33,6 +33,7 @@ def login_req():
     return (e, n, d, cert)
 
 e, n, d, cert = login_req()
+# e, n, d, cert = None, None, None, None
 
 def encrypt(m):
     global e, n
@@ -61,4 +62,3 @@ def uic_pkt(nonce, salt):
 def uic(nonce, salt):
     uic=unhexlify('00000104') + cert + n2m(decrypt(m2n(uic_pkt(nonce, salt))))
     return b2a_base64(uic)
-

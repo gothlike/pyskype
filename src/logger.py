@@ -7,8 +7,9 @@ from lxml import etree
 from StringIO import StringIO
 from funnydigest import funnydigest
 
-from cred import *
+from cred import skypename
 from login import uic
+
 
 epid="cabba291-a68d-9370-3a70-26009dc4fb0e" # TODO make uniq?
 
@@ -65,8 +66,23 @@ def publication(hdr={}):
     body='<user><sep n="PE" epid="{' + epid + '}"><VER>2/4.3.0.37/172</VER><TYP>14</TYP><Capabilities>0:0</Capabilities></sep><s n="IM"><Status>NLN</Status></s><sep n="IM" epid="{' + epid + '}"><Capabilities>0:4194560</Capabilities></sep><sep n="PD" epid="{' + epid + '}"><EpName>ubuntu</EpName><ClientType>14</ClientType></sep><s n="SKP"><Mood/><Skypename>' + skypename + '</Skypename></s><sep n="SKP" epid="{' + epid + '}"><NodeInfo>x8b24a10d59cbd00e01c0a80137d4126fdd4d8f9c4cb6308989d4120801</NodeInfo><Version>24</Version><Seamless>true</Seamless></sep></user>'
     return entity("Publication: 1.0", defaults, body)
 
+
 class Connection():
-    def connect(self, host, port):
+    """
+    Connection to Skype server.
+    """
+
+    on_message_callback = None
+
+    def __init__(self, on_message_callback):
+        """
+
+        :param callable on_message_callback:
+        :return:
+        """
+        self.on_message_callback = on_message_callback
+
+    def connect(self, host='s.gateway.messenger.live.com', port=443):
         print "Connecting to %s:%d" % (host, port)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
@@ -114,7 +130,10 @@ class Connection():
                 self.send("PNG", "CON", reg())
 
     def handle(self, cmd, cnt, url, hdr, body):
+        print '\n\n\ngot MESSAGE\n\n\n'
         print "inbound " + cmd
+        if cmd == 'SDG':
+            self.on_message_callback(body)
 
     def receiver_loop(self):
         global registration
@@ -126,7 +145,7 @@ class Connection():
             cmd, cnt, url, bsz = l.split()
             cnt = int(cnt)
             body = self.sock_file.read(int(bsz))
-            print body
+            print body, '-|||||||||'
             if body[:2] == "\r\n":
                 hdr = dict()
                 body = body[2:]
@@ -200,8 +219,9 @@ class Connection():
     def msgr(self, body):
         self.send("SDG", "MSGR", reg() + body)
 
-connection = Connection()
-connection.connect('s.gateway.messenger.live.com', 443)
+    def wrapped_send(self, targetSkypename, message):
+        self.msgr( routing(targetSkypename) + reliability() + messaging_rich(message) )
+
 
 # to send a message:
 # connection.msgr(routing(skypename) + reliability() + messaging_rich("Oh, hi!"))

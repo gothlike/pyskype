@@ -7,12 +7,13 @@ from Crypto.Cipher import AES
 
 import pack41, pack42
 from things import *
-from cred import *
+from cred import skypename, password
 
 login_key = 0xa8f223612f4f5fc81ef1ca5e310b0b21532a72df6c1af0fbec87304aec983aab5d74a14cc72e53ef7752a248c0e5abe09484b597692015e796350989c88b3cae140ca82ccd9914e540468cf0edb35dcba4c352890e7a9eafac550b3978627651ad0a804f385ef5f4093ac6ee66b23e1f8202c61c6c0375eeb713852397ced2e199492aa61a3eab163d4c2625c873e95cafd95b80dd2d8732c8e25638a2007acfa6c8f1ff31cc2bc4ca8f4446f51da404335a48c955aaa3a4b57250d7ba29700b
 
+
 def crc8(s):
-    z=0xffffffff
+    z = 0xffffffff
     for i in s:
         z ^= ord(i)
         for j in range(0, 8):
@@ -21,6 +22,7 @@ def crc8(s):
             else:
                 z = (z >> 1)
     return z
+
 
 class rsa_aes():
     def __init__(self, s):
@@ -119,7 +121,7 @@ class rsa_aes():
         while True:
             b = self.recv_packet(i)
             i = i+1
-            parser = pack41.read41(b);
+            parser = pack41.read41(b)
             resp = parser.read_list()
             result = getbyid(resp, 1)
             if result:
