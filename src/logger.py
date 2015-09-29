@@ -7,74 +7,56 @@ from lxml import etree
 from StringIO import StringIO
 from funnydigest import funnydigest
 
-from cred import skypename
-from login import uic
+from login import PyLogin
 
 
-epid="cabba291-a68d-9370-3a70-26009dc4fb0e" # TODO make uniq?
+EPID = 'cabba291-a68d-9370-3a70-26009dc4fb0e' # TODO make uniq?
 
-registration=""
+CRLF = '\r\n'
 
-crlf='\r\n'
+RELIABILITY = 'Reliability: 1.0\r\n\r\n'
+
 
 def entity(cmd, hdr, body=''):
     if len(body) > 0:
         hdr['Content-Length'] = str(len(body))
-    return cmd + crlf + "".join("%s: %s\r\n" % i for i in hdr.iteritems()) + crlf + body
+    return cmd + CRLF + "".join("%s: %s\r\n" % i for i in hdr.iteritems()) + CRLF + body
 
-def reg():
-    global registration
-    return "Registration: " + registration + "\r\n\r\n"
 
 def messaging_plain(body, hdr={}):
     defaults = {
         'Content-Type': 'Text/plain; charset=UTF-8',
         'Message-Type': 'Text',
-        'Client-Message-ID': str(uuid.uuid1().int>>64),
-        'IM-Display-Name': 'dummy'
+        'Client-Message-ID': str(uuid.uuid1().int >> 64),
+        'IM-Display-Name': 'dummy'  # TODO: @kuptsov customize display name
     }
     defaults.update(hdr)
     return entity("Messaging: 2.0", defaults, body)
+
 
 def messaging_rich(body, hdr={}):
     defaults = {
         'Content-Type': 'application/user+xml',
         'Message-Type': 'RichText',
-        'Client-Message-ID': str(uuid.uuid1().int>>64),
-        'IM-Display-Name': 'dummy'
+        'Client-Message-ID': str(uuid.uuid1().int >> 64),
+        'IM-Display-Name': 'dummy'  # TODO: @kuptsov customize display name
     }
     defaults.update(hdr)
     return entity("Messaging: 2.0", defaults, body)
 
-def reliability():
-    return "Reliability: 1.0\r\n\r\n"
 
-def routing(to, hdr={}):
-    defaults = {
-        'To': '8:' + to,
-        'From': "8:" + skypename + ";epid={" + epid + "}" 
-    }
-    defaults.update(hdr)
-    return entity("Routing: 1.0", defaults)
-
-def publication(hdr={}):
-    defaults = {
-        'Uri': '/user',
-        'Content-Type': 'application/user+xml'
-    }
-    defaults.update(hdr)
-    body='<user><sep n="PE" epid="{' + epid + '}"><VER>2/4.3.0.37/172</VER><TYP>14</TYP><Capabilities>0:0</Capabilities></sep><s n="IM"><Status>NLN</Status></s><sep n="IM" epid="{' + epid + '}"><Capabilities>0:4194560</Capabilities></sep><sep n="PD" epid="{' + epid + '}"><EpName>ubuntu</EpName><ClientType>14</ClientType></sep><s n="SKP"><Mood/><Skypename>' + skypename + '</Skypename></s><sep n="SKP" epid="{' + epid + '}"><NodeInfo>x8b24a10d59cbd00e01c0a80137d4126fdd4d8f9c4cb6308989d4120801</NodeInfo><Version>24</Version><Seamless>true</Seamless></sep></user>'
-    return entity("Publication: 1.0", defaults, body)
-
-
-class Connection():
+class Connection(object):
     """
     Connection to Skype server.
     """
 
-    on_message_callback = None
+    registration = ''
 
-    def __init__(self, on_message_callback):
+    on_message_callback = None
+    login_instance = None
+    skypename = None
+
+    def __init__(self, on_message_callback, skypename, password):
         """
 
         :param callable on_message_callback:
@@ -82,10 +64,13 @@ class Connection():
         """
         self.on_message_callback = on_message_callback
 
+        self.skypename = skypename
+        self.login_instance = PyLogin(skypename, password)  # TODO: @kuptsov - maybe move to the top of `connect` method
+
     def connect(self, host='s.gateway.messenger.live.com', port=443):
         print "Connecting to %s:%d" % (host, port)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
+
         self.ssl_sock = ssl.wrap_socket(s)
         self.ssl_sock.connect((host, port))
         self.sock_file = self.ssl_sock.makefile()
@@ -93,7 +78,7 @@ class Connection():
         self.cnt = 0
         self.queue = Queue.Queue(-1)
         self.pending_requests = { }
-        
+
         self.sender = threading.Thread(target=self.sender_loop)
         self.sender.setDaemon(True)
         self.sender.start()
@@ -127,7 +112,7 @@ class Connection():
                 print p
                 self.ssl_sock.send(p)
             except Queue.Empty:
-                self.send("PNG", "CON", reg())
+                self.send("PNG", "CON", self._reg())
 
     def handle(self, cmd, cnt, url, hdr, body):
         print '\n\n\ngot MESSAGE\n\n\n'
@@ -136,8 +121,6 @@ class Connection():
             self.on_message_callback(body)
 
     def receiver_loop(self):
-        global registration
-
         while True:
             l = self.sock_file.readline()
             print "<<<<<<<"
@@ -159,7 +142,7 @@ class Connection():
                 hdr = dict(x.split(": ") for x in hdr)
 
             if "Set-Registration" in hdr:
-                registration=hdr["Set-Registration"]
+                self.registration = hdr["Set-Registration"]
 
             if cmd == "XFR":
                 self.handle_XFR(cmd, url, hdr, body)
@@ -189,12 +172,12 @@ class Connection():
         root=etree.parse(StringIO(body))
         nonce=root.xpath("/connect-response/nonce")[0].text
 
-        self.send("ATH", "CON\USER", "\r\n<user><uic>" + uic(nonce, "WS-SecureConversationSESSION KEY TOKEN") + "</uic><id>" + skypename + "</id></user>\r\n", self.handle_ATH_reply);
+        self.send("ATH", "CON\USER", "\r\n<user><uic>" + self.login_instance.uic(nonce, "WS-SecureConversationSESSION KEY TOKEN") + "</uic><id>" + self.skypename + "</id></user>\r\n", self.handle_ATH_reply);
 
     def handle_ATH_reply(self, cmd, url, hdr, body):
         assert cmd == "ATH"
 
-        self.send("BND", "CON\MSGR", "\r\n<msgr><ver>2</ver><altVersions><ver>1</ver></altVersions><client><name>Skype</name><ver>2/4.3.0.37/172</ver></client><epid>" + epid + "</epid></msgr>\r\n", self.handle_BND_reply)
+        self.send("BND", "CON\MSGR", "\r\n<msgr><ver>2</ver><altVersions><ver>1</ver></altVersions><client><name>Skype</name><ver>2/4.3.0.37/172</ver></client><epid>" + EPID + "</epid></msgr>\r\n", self.handle_BND_reply)
 
 
     def handle_BND_reply(self, cmd, url, hdr, body):
@@ -205,22 +188,48 @@ class Connection():
 
         rsp=funnydigest(nonce)
 
-        self.send("PUT", "MSGR\CHALLENGE", reg() + "<challenge><appId>PROD0090YUAUV{2B</appId><response>" + rsp + "</response></challenge>\r\n")
+        self.send("PUT", "MSGR\CHALLENGE", self._reg() + "<challenge><appId>PROD0090YUAUV{2B</appId><response>" + rsp + "</response></challenge>\r\n")
 
-        self.send("PUT", "MSGR\PRESENCE", reg() + routing(skypename) + reliability() + publication())
+        self.send("PUT", "MSGR\PRESENCE", self._reg() + self._routing(self.skypename) + RELIABILITY + self._publication())
 
-        self.send("PUT", "MSGR\SUBSCRIPTIONS", reg() + "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>")
+        self.send("PUT", "MSGR\SUBSCRIPTIONS", self._reg() + "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>")
 
-        self.send("GET", "MSGR\RECENTCONVERSATIONS", reg() + "<recentconversations><pagesize>100</pagesize></recentconversations>")
+        self.send("GET", "MSGR\RECENTCONVERSATIONS", self._reg() + "<recentconversations><pagesize>100</pagesize></recentconversations>")
 
     def start_handshake(self):
         self.send("CNT", "CON", "\r\n<connect><ver>2</ver><agent><os>Linux</os><osVer>Linux 3.11.0-12-gene</osVer><proc>2 1800 I-586-6-15-13 Intel Core2</proc><lcid>en-US</lcid><country>nz</country></agent></connect>\r\n", self.handle_CNT_reply)
 
     def msgr(self, body):
-        self.send("SDG", "MSGR", reg() + body)
+        self.send("SDG", "MSGR", self._reg() + body)
 
-    def wrapped_send(self, targetSkypename, message):
-        self.msgr( routing(targetSkypename) + reliability() + messaging_rich(message) )
+    def wrapped_send(self, target_skypename, message):
+        self.msgr( self._routing(target_skypename) + RELIABILITY + messaging_rich(message) )
+
+    def _reg(self):
+        return "Registration: " + self.registration + "\r\n\r\n"
+
+    def _publication(self, hdr={}):
+        defaults = {
+            'Uri': '/user',
+            'Content-Type': 'application/user+xml'
+        }
+        defaults.update(hdr)
+        body='<user><sep n="PE" epid="{' + EPID + '}"><VER>2/4.3.0.37/172</VER><TYP>14</TYP><Capabilities>0:0</Capabilities></sep><s n="IM"><Status>NLN</Status></s><sep n="IM" epid="{' + EPID + '}"><Capabilities>0:4194560</Capabilities></sep><sep n="PD" epid="{' + EPID + '}"><EpName>ubuntu</EpName><ClientType>14</ClientType></sep><s n="SKP"><Mood/><Skypename>' + self.skypename + '</Skypename></s><sep n="SKP" epid="{' + EPID + '}"><NodeInfo>x8b24a10d59cbd00e01c0a80137d4126fdd4d8f9c4cb6308989d4120801</NodeInfo><Version>24</Version><Seamless>true</Seamless></sep></user>'
+        return entity("Publication: 1.0", defaults, body)
+
+    def _routing(self, to, hdr={}):
+        """
+
+        :param to:
+        :param hdr:
+        :return:
+        """
+        defaults = {
+            'To': '8:' + to,
+            'From': "8:" + self.skypename + ";epid={" + EPID + "}"
+        }
+        defaults.update(hdr)
+        return entity("Routing: 1.0", defaults)
 
 
 # to send a message:

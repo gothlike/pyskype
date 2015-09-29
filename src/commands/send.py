@@ -9,7 +9,8 @@ def main():
     # Example echo method
     payload = {
         "method": "send_message",
-        "params": ["sayonara-kun", "nyan-nyan"],
+        "params": ["sayonara-kun", "nyan-nyan, Vik"],
+        # "params": ["sprey_x24", "nyan-nyan, Alex!"],
         "jsonrpc": "2.0",
         "id": 42,
     }

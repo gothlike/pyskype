@@ -6,14 +6,15 @@ from jsonrpc import JSONRPCResponseManager, dispatcher
 from logger import Connection
 
 
-
-
 """
 Example of json-rpc usage with Wergzeug and requests.
 
 NOTE: there are no Werkzeug and requests in dependencies of json-rpc.
 NOTE: server handles all url paths the same way (there are no different urls).
 """
+
+
+connection = None
 
 
 def auth(skypename, password):
@@ -28,6 +29,9 @@ def auth(skypename, password):
     print 'provided password is:', password
     print '\n\n'
 
+    global connection
+
+    connection = Connection(on_message_callback, skypename.encode('ascii', 'ignore'), password.encode('ascii', 'ignore'))
     connection.connect()
 
     return True
@@ -40,7 +44,10 @@ def shutdown():
     """
     print '\n\nGot request on shutdown\n\n'
 
+    global connection
+
     connection.shutdown()
+    del connection
 
     return True
 
@@ -70,10 +77,6 @@ def on_message_callback(message):
     print 'Received message:'
     print message
     print '^' * 30
-
-
-connection = Connection(on_message_callback)
-
 
 
 @Request.application

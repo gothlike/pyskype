@@ -7,7 +7,6 @@ from Crypto.Cipher import AES
 
 import pack41, pack42
 from things import *
-from cred import skypename, password
 
 login_key = 0xa8f223612f4f5fc81ef1ca5e310b0b21532a72df6c1af0fbec87304aec983aab5d74a14cc72e53ef7752a248c0e5abe09484b597692015e796350989c88b3cae140ca82ccd9914e540468cf0edb35dcba4c352890e7a9eafac550b3978627651ad0a804f385ef5f4093ac6ee66b23e1f8202c61c6c0375eeb713852397ced2e199492aa61a3eab163d4c2625c873e95cafd95b80dd2d8732c8e25638a2007acfa6c8f1ff31cc2bc4ca8f4446f51da404335a48c955aaa3a4b57250d7ba29700b
 
@@ -24,8 +23,25 @@ def crc8(s):
     return z
 
 
-class rsa_aes():
-    def __init__(self, s):
+class RsaAES(object):
+    """
+
+    """
+
+    skypename = None
+    password = None
+
+    def __init__(self, s, skypename, password):
+        """
+
+        :param s:
+        :param skypename:
+        :param password:
+        :return:
+        """
+        self.skypename = skypename
+        self.password = password
+
         self.stream = s
         self.handshake()
 
@@ -73,8 +89,8 @@ class rsa_aes():
         return [
             Dword(i=0, d=cmd), 
             Dword(i=2, d=0x00000001), 
-            String(i=4, d=skypename), 
-            Buf(i=5, d=md5('%s\nskyper\n%s' % (skypename, password)).digest())
+            String(i=4, d=self.skypename),
+            Buf(i=5, d=md5('%s\nskyper\n%s' % (self.skypename, self.password)).digest())
         ]
 
     def second_packet(self, cmd, params):
